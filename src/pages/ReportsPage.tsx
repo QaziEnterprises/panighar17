@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { offlineQuery } from "@/lib/offlineQuery";
-import { CalendarDays, TrendingUp, TrendingDown, DollarSign, ShoppingCart, Receipt, Download, Printer } from "lucide-react";
+import { CalendarDays, TrendingUp, TrendingDown, DollarSign, ShoppingCart, Receipt, Download, Printer, FileDown } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -377,6 +377,216 @@ export default function ReportsPage() {
     printWindow.document.close();
   };
 
+  const handleDownloadDaySummary = async (date: string) => {
+    const day = summaries.find(s => s.date === date);
+    if (!day) return;
+
+    const dateDisplay = new Date(date + "T00:00:00").toLocaleDateString("en-PK", {
+      weekday: "long", year: "numeric", month: "long", day: "numeric"
+    });
+    const timeStr = new Date().toLocaleTimeString("en-PK", { hour: "2-digit", minute: "2-digit", hour12: true });
+
+    const [{ data: salesRaw }, { data: contacts }, { data: saleItems }, { data: expensesRaw }] = await Promise.all([
+      supabase.from("sale_transactions").select("id, invoice_no, total, paid_amount, payment_method, payment_status, customer_id, date").eq("date", date),
+      supabase.from("contacts").select("id, name"),
+      supabase.from("sale_items").select("sale_id, product_name, quantity, unit_price, subtotal"),
+      supabase.from("expenses").select("id, amount, description, payment_method, reference_no").eq("date", date),
+    ]);
+
+    const contactMap = new Map((contacts || []).map(c => [c.id, c.name]));
+    const itemsMap = new Map<string, any[]>();
+    for (const item of (saleItems || [])) {
+      if (!itemsMap.has(item.sale_id)) itemsMap.set(item.sale_id, []);
+      itemsMap.get(item.sale_id)!.push(item);
+    }
+
+    const bills = (salesRaw || []).map(s => ({
+      id: s.id,
+      invoice_no: s.invoice_no,
+      total: Number(s.total || 0),
+      paid_amount: Number(s.paid_amount || 0),
+      payment_method: s.payment_method,
+      payment_status: s.payment_status,
+      customer_name: s.customer_id ? (contactMap.get(s.customer_id) || "Unknown") : "Walk-in",
+      items: (itemsMap.get(s.id) || []).map(i => ({
+        product_name: i.product_name,
+        quantity: Number(i.quantity),
+        unit_price: Number(i.unit_price),
+        subtotal: Number(i.subtotal),
+      })),
+    }));
+
+    const parsePaymentBreakdown = (pm: string | null): Record<string, number> => {
+      if (!pm) return { cash: 0 };
+      const result: Record<string, number> = {};
+      if (pm.includes(":") && pm.includes(",")) {
+        pm.split(",").forEach(part => {
+          const [method, amount] = part.trim().split(":");
+          if (method && amount) result[method.trim().toLowerCase()] = Number(amount.trim()) || 0;
+        });
+      } else if (pm.includes(":") && !pm.includes(",")) {
+        const [method, amount] = pm.split(":");
+        result[method.trim().toLowerCase()] = Number(amount.trim()) || 0;
+      } else {
+        result[pm.trim().toLowerCase()] = 0;
+      }
+      return result;
+    };
+
+    const billsWithBreakdown = bills.map(b => {
+      const breakdown = parsePaymentBreakdown(b.payment_method);
+      const hasAmounts = Object.values(breakdown).some(v => v > 0);
+      if (!hasAmounts && Object.keys(breakdown).length === 1) {
+        const method = Object.keys(breakdown)[0];
+        if (b.payment_status === "due" && b.paid_amount === 0) {
+          breakdown[method] = 0;
+        } else if (b.paid_amount > 0) {
+          breakdown[method] = b.paid_amount;
+        } else {
+          breakdown[method] = b.total;
+        }
+      }
+      return { ...b, breakdown };
+    });
+
+    const expenses = (expensesRaw || []).map(e => ({
+      amount: Number(e.amount || 0),
+      description: e.description,
+      payment_method: e.payment_method,
+      reference_no: e.reference_no,
+    }));
+
+    const buildBillTable = (billList: typeof billsWithBreakdown) => {
+      if (billList.length === 0) return `<div style="color:#aaa;font-style:italic;font-size:11px;padding:6px 0;">No bills</div>`;
+      let html = `<table><thead><tr><th style="width:30px">#</th><th>Customer</th><th>Products</th><th style="width:80px" class="text-right">Bill</th><th style="width:100px" class="text-right">Payment</th><th style="width:80px" class="text-right">Due</th></tr></thead><tbody>`;
+      billList.forEach((b, i) => {
+        const products = b.items.map(it => `${it.product_name || "Item"} ×${it.quantity}`).join(" · ") || "—";
+        const due = b.total - b.paid_amount;
+        const breakdownParts = Object.entries(b.breakdown).filter(([_, amt]) => amt > 0).map(([m, amt]) => `<span style="text-transform:capitalize;font-size:10px">${m}: Rs ${amt.toLocaleString()}</span>`).join("<br>");
+        const payDetail = breakdownParts || `<span style="font-size:10px">Rs ${b.paid_amount.toLocaleString()}</span>`;
+        html += `<tr><td>${i + 1}</td><td style="font-weight:700">${b.customer_name}</td><td style="font-size:10px;color:#555;max-width:220px">${products}</td><td class="text-right">Rs ${b.total.toLocaleString()}</td><td class="text-right" style="color:#2d7d46">${payDetail}</td><td class="text-right" style="color:${due > 0 ? '#c0392b' : '#888'}">${due > 0 ? 'Rs ' + due.toLocaleString() : '—'}</td></tr>`;
+      });
+      html += `</tbody></table>`;
+      return html;
+    };
+
+    const paymentMethods = [
+      { key: "cash", label: "💵 Cash", accent: "#2d7d46" },
+      { key: "bank", label: "🏦 Bank Transfer", accent: "#1a5276" },
+      { key: "jazzcash", label: "📱 JazzCash", accent: "#c0392b" },
+      { key: "easypaisa", label: "📲 EasyPaisa", accent: "#27ae60" },
+    ];
+
+    let billSectionsHtml = "";
+    for (const pm of paymentMethods) {
+      const filtered = billsWithBreakdown.filter(b => b.payment_status === "paid" && pm.key in b.breakdown);
+      if (filtered.length > 0) {
+        const methodTotal = filtered.reduce((s, b) => s + (b.breakdown[pm.key] || 0), 0);
+        billSectionsHtml += `<div style="margin-bottom:18px"><p style="font-size:13px;font-weight:700;margin-bottom:6px;padding:4px 8px;background:#f8f8f8;border-left:4px solid #333;border-radius:2px">${pm.label} <span style="float:right;font-size:11px;color:#555">Received: Rs ${methodTotal.toLocaleString()}</span></p>${buildBillTable(filtered)}</div>`;
+      }
+    }
+
+    const creditBills = billsWithBreakdown.filter(b => b.payment_status === "due" || b.payment_status === "partial");
+    if (creditBills.length > 0) {
+      billSectionsHtml += `<div style="margin-bottom:18px"><p style="font-size:13px;font-weight:700;margin-bottom:6px;padding:4px 8px;background:#f8f8f8;border-left:4px solid #333;border-radius:2px">📋 Credit / Udhar</p>${buildBillTable(creditBills)}</div>`;
+    }
+
+    const cashTotal = billsWithBreakdown.filter(b => b.payment_status === "paid").reduce((s, b) => s + (b.breakdown["cash"] || 0), 0);
+    const bankTotal = billsWithBreakdown.filter(b => b.payment_status === "paid").reduce((s, b) => s + (b.breakdown["bank"] || 0), 0);
+    const jcTotal = billsWithBreakdown.filter(b => b.payment_status === "paid").reduce((s, b) => s + (b.breakdown["jazzcash"] || 0), 0);
+    const epTotal = billsWithBreakdown.filter(b => b.payment_status === "paid").reduce((s, b) => s + (b.breakdown["easypaisa"] || 0), 0);
+    const totalBilled = bills.reduce((s, b) => s + b.total, 0);
+    const creditCash = creditBills.reduce((s, b) => s + (b.breakdown["cash"] || 0), 0);
+    const creditBank = creditBills.reduce((s, b) => s + (b.breakdown["bank"] || 0), 0);
+    const creditJc = creditBills.reduce((s, b) => s + (b.breakdown["jazzcash"] || 0), 0);
+    const creditEp = creditBills.reduce((s, b) => s + (b.breakdown["easypaisa"] || 0), 0);
+    const grandCash = cashTotal + creditCash;
+    const grandBank = bankTotal + creditBank;
+    const grandJc = jcTotal + creditJc;
+    const grandEp = epTotal + creditEp;
+    const grandReceived = grandCash + grandBank + grandJc + grandEp;
+    const totalDue = totalBilled - grandReceived;
+    const totalExpensesAmt = expenses.reduce((s, e) => s + e.amount, 0);
+
+    let expensesHtml = "";
+    if (expenses.length > 0) {
+      expensesHtml = `<div style="margin-bottom:18px"><p style="font-size:13px;font-weight:700;margin-bottom:6px;padding:4px 8px;background:#f8f8f8;border-left:4px solid #333;border-radius:2px">💰 Expenses</p><table><thead><tr><th style="width:30px">#</th><th>Description</th><th>Method</th><th style="width:100px" class="text-right">Amount</th></tr></thead><tbody>`;
+      expenses.forEach((e, i) => {
+        expensesHtml += `<tr><td>${i + 1}</td><td>${e.description || "—"}</td><td style="text-transform:capitalize">${e.payment_method || "—"}</td><td class="text-right" style="font-weight:700">Rs ${e.amount.toLocaleString()}</td></tr>`;
+      });
+      expensesHtml += `</tbody><tfoot><tr style="background:#c0392b;color:#fff;"><td colspan="3" style="font-weight:700;border:none;padding:6px 8px">Total Expenses (${expenses.length})</td><td class="text-right" style="font-weight:700;border:none;padding:6px 8px">Rs ${totalExpensesAmt.toLocaleString()}</td></tr></tfoot></table></div>`;
+    }
+
+    const fullHtml = `<html><head><title>Summary - ${date}</title>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body { font-family: 'Segoe UI', Arial, sans-serif; padding: 24px 28px; font-size: 12px; color: #222; }
+      table { width: 100%; border-collapse: collapse; }
+      th, td { padding: 5px 8px; text-align: left; font-size: 11px; border-bottom: 1px solid #e0e0e0; }
+      th { font-weight: 600; font-size: 9px; text-transform: uppercase; color: #888; border-bottom: 2px solid #ccc; }
+      .text-right { text-align: right; }
+      @media print { body { padding: 12px 16px; } }
+    </style></head><body>
+      <div style="text-align:center;margin-bottom:20px">
+        <h1 style="font-size:22px;font-weight:800;letter-spacing:1px;margin-bottom:2px">QAZI ENTERPRISES</h1>
+        <p style="font-size:10px;color:#666;letter-spacing:3px;text-transform:uppercase;margin-bottom:8px">Building Materials & General Store</p>
+        <span style="font-size:13px;font-weight:600;color:#333;background:#f4f4f4;display:inline-block;padding:4px 16px;border-radius:4px">📊 ${dateDisplay}</span>
+      </div>
+      <hr style="border:none;border-top:2px solid #222;margin:16px 0">
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px">
+        <div style="grid-column:span 2;background:#1a5276;color:#fff;border-radius:6px;padding:10px 14px"><div style="font-size:10px;color:#aaa;text-transform:uppercase;letter-spacing:1px">💰 Net Cash in Hand</div><div style="font-size:18px;font-weight:700;margin-top:2px;color:${(grandCash - totalExpensesAmt) >= 0 ? '#2ecc71' : '#e74c3c'}">Rs ${(grandCash - totalExpensesAmt).toLocaleString()}</div></div>
+        <div style="border:1px solid #ddd;border-radius:6px;padding:10px 14px"><div style="font-size:10px;color:#888;text-transform:uppercase">Total Billed (${day.salesCount} bills)</div><div style="font-size:18px;font-weight:700;margin-top:2px">Rs ${totalBilled.toLocaleString()}</div></div>
+        <div style="border:1px solid #ddd;border-radius:6px;padding:10px 14px"><div style="font-size:10px;color:#888;text-transform:uppercase">Total Received</div><div style="font-size:18px;font-weight:700;margin-top:2px;color:#2d7d46">Rs ${grandReceived.toLocaleString()}</div></div>
+        <div style="border:1px solid #ddd;border-radius:6px;padding:10px 14px"><div style="font-size:10px;color:#888;text-transform:uppercase">Outstanding / Due</div><div style="font-size:18px;font-weight:700;margin-top:2px;color:#e67e22">Rs ${totalDue.toLocaleString()}</div></div>
+        <div style="border:1px solid #ddd;border-radius:6px;padding:10px 14px"><div style="font-size:10px;color:#888;text-transform:uppercase">Expenses (${day.expensesCount})</div><div style="font-size:18px;font-weight:700;margin-top:2px;color:#c0392b">Rs ${day.totalExpenses.toLocaleString()}</div></div>
+        <div style="grid-column:span 2;background:#222;color:#fff;border-radius:6px;padding:10px 14px"><div style="font-size:10px;color:#aaa;text-transform:uppercase">Net Revenue</div><div style="font-size:18px;font-weight:700;margin-top:2px;color:${(grandReceived - day.totalExpenses) >= 0 ? '#2ecc71' : '#e74c3c'}">Rs ${(grandReceived - day.totalExpenses).toLocaleString()}</div></div>
+      </div>
+
+      ${billSectionsHtml}
+      ${expensesHtml}
+
+      <div style="margin-bottom:18px">
+        <p style="font-size:13px;font-weight:700;margin-bottom:6px;padding:4px 8px;background:#f8f8f8;border-left:4px solid #333;border-radius:2px">📋 Payment Collection Summary</p>
+        <table>
+          <thead><tr><th>Payment Method</th><th class="text-right">Amount Received</th></tr></thead>
+          <tbody>
+            ${grandCash > 0 ? `<tr><td>💵 Cash</td><td class="text-right" style="font-weight:700">Rs ${grandCash.toLocaleString()}</td></tr>` : ''}
+            ${grandBank > 0 ? `<tr><td>🏦 Bank Transfer</td><td class="text-right" style="font-weight:700">Rs ${grandBank.toLocaleString()}</td></tr>` : ''}
+            ${grandJc > 0 ? `<tr><td>📱 JazzCash</td><td class="text-right" style="font-weight:700">Rs ${grandJc.toLocaleString()}</td></tr>` : ''}
+            ${grandEp > 0 ? `<tr><td>📲 EasyPaisa</td><td class="text-right" style="font-weight:700">Rs ${grandEp.toLocaleString()}</td></tr>` : ''}
+            <tr style="background:#222;color:#fff;font-weight:700"><td>Total Received</td><td class="text-right">Rs ${grandReceived.toLocaleString()}</td></tr>
+            ${totalDue > 0 ? `<tr style="background:#fff3e0"><td style="font-weight:700;color:#e67e22">⏳ Remaining Due</td><td class="text-right" style="font-weight:700;color:#e67e22">Rs ${totalDue.toLocaleString()}</td></tr>` : ''}
+            <tr style="background:#333;color:#fff;font-size:13px;font-weight:700"><td>Total Billed</td><td class="text-right">Rs ${totalBilled.toLocaleString()}</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div style="text-align:center;margin-top:24px;font-size:9px;color:#aaa;border-top:1px dashed #ccc;padding-top:8px">Qazi Enterprises — Panighar · Generated at ${timeStr}</div>
+    </body></html>`;
+
+    const iframe = document.createElement("iframe");
+    iframe.style.position = "fixed";
+    iframe.style.right = "0";
+    iframe.style.bottom = "0";
+    iframe.style.width = "0";
+    iframe.style.height = "0";
+    iframe.style.border = "none";
+    document.body.appendChild(iframe);
+    const doc = iframe.contentDocument || iframe.contentWindow?.document;
+    if (!doc) { toast.error("Could not create PDF"); return; }
+    doc.open();
+    doc.write(fullHtml);
+    doc.close();
+    iframe.onload = () => {
+      setTimeout(() => {
+        iframe.contentWindow?.print();
+        setTimeout(() => document.body.removeChild(iframe), 2000);
+      }, 500);
+    };
+    toast.success("PDF download dialog opened");
+  };
+
   return (
     <div>
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -501,9 +711,14 @@ export default function ReportsPage() {
                         <div className="bg-muted/20 border-y p-4">
                           <div className="flex items-center justify-between mb-3">
                             <h4 className="text-sm font-semibold">Invoices for {d.date}</h4>
-                            <Button size="sm" variant="outline" className="gap-2 h-7 text-xs" onClick={() => handlePrintDaySummary(d.date)}>
-                              <Printer className="h-3 w-3" /> Print Summary
-                            </Button>
+                            <div className="flex gap-2">
+                              <Button size="sm" variant="outline" className="gap-2 h-7 text-xs" onClick={() => handlePrintDaySummary(d.date)}>
+                                <Printer className="h-3 w-3" /> Print Summary
+                              </Button>
+                              <Button size="sm" variant="outline" className="gap-2 h-7 text-xs" onClick={() => handleDownloadDaySummary(d.date)}>
+                                <FileDown className="h-3 w-3" /> Download PDF
+                              </Button>
+                            </div>
                           </div>
                           {!invoiceDetails[d.date] ? (
                             <p className="text-sm text-muted-foreground">Loading...</p>
