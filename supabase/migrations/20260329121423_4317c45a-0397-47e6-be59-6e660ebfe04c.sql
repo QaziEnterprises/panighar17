@@ -1,1 +1,0 @@
-ALTER TABLE public.sale_transactions ADD COLUMN IF NOT EXISTS paid_amount numeric DEFAULT 0;
