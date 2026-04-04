@@ -1,8 +1,6 @@
 
--- Enum for user roles
 CREATE TYPE public.app_role AS ENUM ('admin', 'user');
 
--- User roles
 CREATE TABLE public.user_roles (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
@@ -18,7 +16,6 @@ RETURNS BOOLEAN LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS
   SELECT EXISTS (SELECT 1 FROM public.user_roles WHERE user_id = _user_id AND role = _role)
 $$;
 
--- Profiles
 CREATE TABLE public.profiles (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL UNIQUE,
@@ -30,7 +27,6 @@ ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can read own profile" ON public.profiles FOR SELECT TO authenticated USING (auth.uid() = user_id);
 CREATE POLICY "Users can update own profile" ON public.profiles FOR UPDATE TO authenticated USING (auth.uid() = user_id);
 
--- Contacts
 CREATE TABLE public.contacts (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   type TEXT NOT NULL, name TEXT NOT NULL, phone TEXT, email TEXT, address TEXT, city TEXT,
@@ -40,14 +36,12 @@ CREATE TABLE public.contacts (
 ALTER TABLE public.contacts ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Authenticated users can CRUD contacts" ON public.contacts FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
--- Product categories
 CREATE TABLE public.product_categories (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(), name TEXT NOT NULL, description TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 ALTER TABLE public.product_categories ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Authenticated can CRUD product_categories" ON public.product_categories FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
--- Products
 CREATE TABLE public.products (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(), name TEXT NOT NULL, sku TEXT,
   category_id UUID REFERENCES public.product_categories(id),
@@ -59,7 +53,6 @@ CREATE TABLE public.products (
 ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Authenticated can CRUD products" ON public.products FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
--- Sale transactions
 CREATE TABLE public.sale_transactions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   customer_id UUID REFERENCES public.contacts(id),
@@ -72,7 +65,6 @@ CREATE TABLE public.sale_transactions (
 ALTER TABLE public.sale_transactions ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Authenticated can CRUD sale_transactions" ON public.sale_transactions FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
--- Sale items
 CREATE TABLE public.sale_items (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   sale_id UUID REFERENCES public.sale_transactions(id) ON DELETE CASCADE NOT NULL,
@@ -82,7 +74,6 @@ CREATE TABLE public.sale_items (
 ALTER TABLE public.sale_items ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Authenticated can CRUD sale_items" ON public.sale_items FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
--- Purchases
 CREATE TABLE public.purchases (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   supplier_id UUID REFERENCES public.contacts(id),
@@ -93,7 +84,6 @@ CREATE TABLE public.purchases (
 ALTER TABLE public.purchases ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Authenticated can CRUD purchases" ON public.purchases FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
--- Purchase items
 CREATE TABLE public.purchase_items (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   purchase_id UUID REFERENCES public.purchases(id) ON DELETE CASCADE NOT NULL,
@@ -103,14 +93,12 @@ CREATE TABLE public.purchase_items (
 ALTER TABLE public.purchase_items ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Authenticated can CRUD purchase_items" ON public.purchase_items FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
--- Expense categories
 CREATE TABLE public.expense_categories (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(), name TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 ALTER TABLE public.expense_categories ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Authenticated can CRUD expense_categories" ON public.expense_categories FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
--- Expenses
 CREATE TABLE public.expenses (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   category_id UUID REFERENCES public.expense_categories(id),
@@ -121,7 +109,6 @@ CREATE TABLE public.expenses (
 ALTER TABLE public.expenses ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Authenticated can CRUD expenses" ON public.expenses FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
--- Ledger entries
 CREATE TABLE public.ledger_entries (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   contact_id UUID REFERENCES public.contacts(id) ON DELETE CASCADE NOT NULL,
@@ -132,7 +119,6 @@ CREATE TABLE public.ledger_entries (
 ALTER TABLE public.ledger_entries ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Authenticated can CRUD ledger_entries" ON public.ledger_entries FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
--- Audit logs
 CREATE TABLE public.audit_logs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID, user_email TEXT, action TEXT NOT NULL, entity_type TEXT NOT NULL,
@@ -142,7 +128,6 @@ ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Admins can read audit_logs" ON public.audit_logs FOR SELECT TO authenticated USING (public.has_role(auth.uid(), 'admin'));
 CREATE POLICY "Authenticated can insert audit_logs" ON public.audit_logs FOR INSERT TO authenticated WITH CHECK (true);
 
--- Daily summaries
 CREATE TABLE public.daily_summaries (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   date DATE NOT NULL UNIQUE, total_sales NUMERIC DEFAULT 0, total_purchases NUMERIC DEFAULT 0,
@@ -153,7 +138,6 @@ CREATE TABLE public.daily_summaries (
 ALTER TABLE public.daily_summaries ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Authenticated can CRUD daily_summaries" ON public.daily_summaries FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
--- Receivable payments
 CREATE TABLE public.receivable_payments (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   sale_id UUID REFERENCES public.sale_transactions(id) ON DELETE CASCADE NOT NULL,
@@ -163,7 +147,6 @@ CREATE TABLE public.receivable_payments (
 ALTER TABLE public.receivable_payments ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Authenticated can CRUD receivable_payments" ON public.receivable_payments FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
--- Login attempts
 CREATE TABLE public.login_attempts (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   identifier TEXT NOT NULL, attempted_at TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -171,7 +154,6 @@ CREATE TABLE public.login_attempts (
 ALTER TABLE public.login_attempts ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Anyone can manage login_attempts" ON public.login_attempts FOR ALL USING (true) WITH CHECK (true);
 
--- Price lists
 CREATE TABLE public.price_lists (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL, description TEXT, is_default BOOLEAN DEFAULT false,
@@ -189,7 +171,6 @@ CREATE TABLE public.price_list_items (
 ALTER TABLE public.price_list_items ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Authenticated can CRUD price_list_items" ON public.price_list_items FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
--- Backup history
 CREATE TABLE public.backup_history (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES auth.users(id) NOT NULL,
@@ -200,7 +181,6 @@ CREATE TABLE public.backup_history (
 ALTER TABLE public.backup_history ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can manage own backups" ON public.backup_history FOR ALL TO authenticated USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 
--- Cash register
 CREATE TABLE public.cash_register (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   date DATE NOT NULL DEFAULT CURRENT_DATE,
@@ -213,7 +193,6 @@ CREATE TABLE public.cash_register (
 ALTER TABLE public.cash_register ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Authenticated can CRUD cash_register" ON public.cash_register FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
--- App settings
 CREATE TABLE public.app_settings (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   key TEXT NOT NULL UNIQUE, value TEXT,
@@ -222,7 +201,6 @@ CREATE TABLE public.app_settings (
 ALTER TABLE public.app_settings ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Authenticated can CRUD app_settings" ON public.app_settings FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
--- Google Drive tokens
 CREATE TABLE public.google_drive_tokens (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL UNIQUE,
@@ -233,12 +211,10 @@ CREATE TABLE public.google_drive_tokens (
 ALTER TABLE public.google_drive_tokens ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users manage own tokens" ON public.google_drive_tokens FOR ALL TO authenticated USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 
--- Admin policies for profiles and roles
 CREATE POLICY "Admins can read all profiles" ON public.profiles FOR SELECT TO authenticated USING (public.has_role(auth.uid(), 'admin'));
 CREATE POLICY "Admins can read all roles" ON public.user_roles FOR SELECT TO authenticated USING (public.has_role(auth.uid(), 'admin'));
 CREATE POLICY "Admins can manage roles" ON public.user_roles FOR ALL TO authenticated USING (has_role(auth.uid(), 'admin'::app_role)) WITH CHECK (has_role(auth.uid(), 'admin'::app_role));
 
--- Returns
 CREATE TABLE public.returns (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   sale_id UUID REFERENCES public.sale_transactions(id) ON DELETE SET NULL,
@@ -260,7 +236,6 @@ CREATE TABLE public.return_items (
 ALTER TABLE public.return_items ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Authenticated can CRUD return_items" ON public.return_items FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
--- Notifications
 CREATE TABLE public.notifications (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL, title TEXT NOT NULL, message TEXT,
