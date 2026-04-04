@@ -711,9 +711,14 @@ export default function ReportsPage() {
                         <div className="bg-muted/20 border-y p-4">
                           <div className="flex items-center justify-between mb-3">
                             <h4 className="text-sm font-semibold">Invoices for {d.date}</h4>
-                            <Button size="sm" variant="outline" className="gap-2 h-7 text-xs" onClick={() => handlePrintDaySummary(d.date)}>
-                              <Printer className="h-3 w-3" /> Print Summary
-                            </Button>
+                            <div className="flex gap-2">
+                              <Button size="sm" variant="outline" className="gap-2 h-7 text-xs" onClick={() => handlePrintDaySummary(d.date)}>
+                                <Printer className="h-3 w-3" /> Print Summary
+                              </Button>
+                              <Button size="sm" variant="outline" className="gap-2 h-7 text-xs" onClick={() => handleDownloadDaySummary(d.date)}>
+                                <FileDown className="h-3 w-3" /> Download PDF
+                              </Button>
+                            </div>
                           </div>
                           {!invoiceDetails[d.date] ? (
                             <p className="text-sm text-muted-foreground">Loading...</p>
