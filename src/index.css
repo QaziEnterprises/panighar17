@@ -138,6 +138,7 @@
 @layer base {
   * {
     @apply border-border;
+    cursor: none !important;
   }
 
   body {
