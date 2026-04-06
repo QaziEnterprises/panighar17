@@ -78,6 +78,7 @@ interface AppSettings {
   fontSize: string;
   compactMode: boolean;
   animationsEnabled: boolean;
+  cursorStyle: string;
   // Backup
   autoBackup: boolean;
   backupFrequency: string;
@@ -165,6 +166,7 @@ const defaultSettings: AppSettings = {
   fontSize: "normal",
   compactMode: false,
   animationsEnabled: true,
+  cursorStyle: "neon-glow",
   autoBackup: false,
   backupFrequency: "daily",
   dataRetentionDays: 365,
@@ -629,6 +631,19 @@ export default function SettingsPage() {
                       <SelectItem value="small">Small</SelectItem>
                       <SelectItem value="normal">Normal</SelectItem>
                       <SelectItem value="large">Large</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label>Cursor Style</Label>
+                  <Select value={settings.cursorStyle} onValueChange={(v) => updateSetting("cursorStyle", v)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="neon-glow">✨ Neon Glow</SelectItem>
+                      <SelectItem value="simple-dot">● Simple Dot</SelectItem>
+                      <SelectItem value="crosshair">+ Crosshair</SelectItem>
+                      <SelectItem value="ring">◯ Ring</SelectItem>
+                      <SelectItem value="none">🖱️ System Default</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

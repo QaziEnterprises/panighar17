@@ -138,6 +138,9 @@
 @layer base {
   * {
     @apply border-border;
+  }
+
+  html:not(.system-cursor) * {
     cursor: none !important;
   }
 
