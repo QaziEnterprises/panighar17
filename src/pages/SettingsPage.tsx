@@ -166,6 +166,7 @@ const defaultSettings: AppSettings = {
   fontSize: "normal",
   compactMode: false,
   animationsEnabled: true,
+  cursorStyle: "neon-glow",
   autoBackup: false,
   backupFrequency: "daily",
   dataRetentionDays: 365,
