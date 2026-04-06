@@ -38,13 +38,10 @@ export default function CustomCursor() {
 
   useEffect(() => {
     if (cursorStyle === "none") {
-      document.documentElement.style.cursor = "auto";
-      document.querySelectorAll("*").forEach(el => {
-        (el as HTMLElement).style.cursor = "";
-      });
-      return;
+      document.documentElement.classList.add("system-cursor");
+      return () => { document.documentElement.classList.remove("system-cursor"); };
     } else {
-      document.documentElement.style.cursor = "none";
+      document.documentElement.classList.remove("system-cursor");
     }
 
     const onMove = (e: MouseEvent) => {
