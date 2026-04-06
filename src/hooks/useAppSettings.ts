@@ -66,6 +66,7 @@ export interface AppSettings {
   fontSize: string;
   compactMode: boolean;
   animationsEnabled: boolean;
+  cursorStyle: string;
   // Backup
   autoBackup: boolean;
   backupFrequency: string;
