@@ -634,6 +634,19 @@ export default function SettingsPage() {
                     </SelectContent>
                   </Select>
                 </div>
+                <div className="space-y-1">
+                  <Label>Cursor Style</Label>
+                  <Select value={settings.cursorStyle} onValueChange={(v) => updateSetting("cursorStyle", v)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="neon-glow">✨ Neon Glow</SelectItem>
+                      <SelectItem value="simple-dot">● Simple Dot</SelectItem>
+                      <SelectItem value="crosshair">+ Crosshair</SelectItem>
+                      <SelectItem value="ring">◯ Ring</SelectItem>
+                      <SelectItem value="none">🖱️ System Default</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
               <Separator />
               <SwitchRow label="Compact Mode" desc="Reduce spacing and padding for denser layout" checked={settings.compactMode} onChange={(v) => updateSetting("compactMode", v)} />
