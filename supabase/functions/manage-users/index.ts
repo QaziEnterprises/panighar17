@@ -24,6 +24,19 @@ Deno.serve(async (req) => {
         user_metadata: { display_name: displayName || email.split("@")[0] },
       });
       if (error) return new Response(JSON.stringify({ error: error.message }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+
+      // Create profile and role for the new user
+      const newUserId = data.user.id;
+      await supabaseAdmin.from("profiles").insert({
+        user_id: newUserId,
+        email,
+        display_name: displayName || email.split("@")[0],
+      });
+      await supabaseAdmin.from("user_roles").insert({
+        user_id: newUserId,
+        role: "user",
+      });
+
       return new Response(JSON.stringify({ user: data.user }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
