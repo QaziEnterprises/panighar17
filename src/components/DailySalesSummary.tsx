@@ -368,19 +368,23 @@ export default function DailySalesSummary() {
     const todayStr = getTodayStr();
     toast.info("Generating PDF, please wait...");
 
-    // Create a hidden container to render HTML
+    // Create a visible but off-screen container for html2canvas
     const container = document.createElement("div");
-    container.style.position = "fixed";
-    container.style.left = "-9999px";
+    container.style.position = "absolute";
+    container.style.left = "0";
     container.style.top = "0";
-    container.style.width = "794px"; // A4 width at 96dpi
+    container.style.width = "794px";
     container.style.background = "#fff";
     container.style.padding = "20px";
     container.style.fontFamily = "'Segoe UI', Arial, sans-serif";
     container.style.fontSize = "12px";
     container.style.color = "#000";
+    container.style.zIndex = "-9999";
+    container.style.overflow = "hidden";
     container.innerHTML = `<style>${styles}</style>${body}`;
     document.body.appendChild(container);
+    // Let the browser render
+    await new Promise(r => setTimeout(r, 300));
 
     try {
       const { default: html2canvas } = await import("html2canvas");

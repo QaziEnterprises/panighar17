@@ -568,13 +568,14 @@ export default function ReportsPage() {
     toast.info("Generating PDF, please wait...");
 
     const container = document.createElement("div");
-    container.style.position = "fixed";
-    container.style.left = "-9999px";
+    container.style.position = "absolute";
+    container.style.left = "0";
     container.style.top = "0";
     container.style.width = "794px";
     container.style.background = "#fff";
+    container.style.zIndex = "-9999";
+    container.style.overflow = "hidden";
     container.innerHTML = fullHtml.replace(/<html>.*<body>/s, "").replace(/<\/body>.*<\/html>/s, "");
-    // Extract and apply styles
     const styleMatch = fullHtml.match(/<style>([\s\S]*?)<\/style>/);
     if (styleMatch) {
       const styleEl = document.createElement("style");
@@ -586,6 +587,7 @@ export default function ReportsPage() {
     container.style.fontSize = "12px";
     container.style.color = "#222";
     document.body.appendChild(container);
+    await new Promise(r => setTimeout(r, 300));
 
     try {
       const { default: html2canvas } = await import("html2canvas");
