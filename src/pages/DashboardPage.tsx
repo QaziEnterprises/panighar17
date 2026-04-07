@@ -528,6 +528,11 @@ export default function DashboardPage() {
         </Card>
       </motion.div>
 
+      {/* Daily Sales Summary with PDF Download */}
+      <motion.div variants={item}>
+        <DailySalesSummary />
+      </motion.div>
+
       {/* Payment Reminders */}
       <motion.div variants={item}>
         <PaymentRemindersWidget />
