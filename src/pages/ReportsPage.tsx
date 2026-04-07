@@ -565,26 +565,62 @@ export default function ReportsPage() {
       <div style="text-align:center;margin-top:24px;font-size:9px;color:#aaa;border-top:1px dashed #ccc;padding-top:8px">Qazi Enterprises — Panighar · Generated at ${timeStr}</div>
     </body></html>`;
 
-    const iframe = document.createElement("iframe");
-    iframe.style.position = "fixed";
-    iframe.style.right = "0";
-    iframe.style.bottom = "0";
-    iframe.style.width = "0";
-    iframe.style.height = "0";
-    iframe.style.border = "none";
-    document.body.appendChild(iframe);
-    const doc = iframe.contentDocument || iframe.contentWindow?.document;
-    if (!doc) { toast.error("Could not create PDF"); return; }
-    doc.open();
-    doc.write(fullHtml);
-    doc.close();
-    iframe.onload = () => {
-      setTimeout(() => {
-        iframe.contentWindow?.print();
-        setTimeout(() => document.body.removeChild(iframe), 2000);
-      }, 500);
-    };
-    toast.success("PDF download dialog opened");
+    toast.info("Generating PDF, please wait...");
+
+    const container = document.createElement("div");
+    container.style.position = "fixed";
+    container.style.left = "-9999px";
+    container.style.top = "0";
+    container.style.width = "794px";
+    container.style.background = "#fff";
+    container.innerHTML = fullHtml.replace(/<html>.*<body>/s, "").replace(/<\/body>.*<\/html>/s, "");
+    // Extract and apply styles
+    const styleMatch = fullHtml.match(/<style>([\s\S]*?)<\/style>/);
+    if (styleMatch) {
+      const styleEl = document.createElement("style");
+      styleEl.textContent = styleMatch[1];
+      container.prepend(styleEl);
+    }
+    container.style.padding = "24px 28px";
+    container.style.fontFamily = "'Segoe UI', Arial, sans-serif";
+    container.style.fontSize = "12px";
+    container.style.color = "#222";
+    document.body.appendChild(container);
+
+    try {
+      const { default: html2canvas } = await import("html2canvas");
+      const { default: jsPDF } = await import("jspdf");
+
+      const canvas = await html2canvas(container, { scale: 2, useCORS: true, backgroundColor: "#ffffff" });
+      const imgData = canvas.toDataURL("image/jpeg", 0.95);
+
+      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+      const imgWidth = pdfWidth;
+      const imgHeight = (canvas.height * pdfWidth) / canvas.width;
+
+      let heightLeft = imgHeight;
+      let position = 0;
+
+      pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight);
+      heightLeft -= pdfHeight;
+
+      while (heightLeft > 0) {
+        position -= pdfHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight);
+        heightLeft -= pdfHeight;
+      }
+
+      pdf.save(`Summary_${date}.pdf`);
+      toast.success("PDF downloaded successfully!");
+    } catch (err) {
+      console.error("PDF generation error:", err);
+      toast.error("Failed to generate PDF");
+    } finally {
+      document.body.removeChild(container);
+    }
   };
 
   return (

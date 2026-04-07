@@ -364,41 +364,58 @@ export default function DailySalesSummary() {
   };
 
   const handleDownload = async () => {
-    const { styles, body, todayDisplay } = await buildSummaryHtml();
-    const printStyles = `@page { size: A4; margin: 10mm; } @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }`;
-    const html = `<html><head><meta charset="utf-8"><title>Daily Summary - ${todayDisplay}</title><style>${styles}\n${printStyles}</style></head><body>${body}</body></html>`;
-    
-    // Create hidden iframe for PDF save dialog
-    const iframe = document.createElement("iframe");
-    iframe.style.position = "fixed";
-    iframe.style.right = "0";
-    iframe.style.bottom = "0";
-    iframe.style.width = "0";
-    iframe.style.height = "0";
-    iframe.style.border = "none";
-    document.body.appendChild(iframe);
-    
-    const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
-    if (!iframeDoc) {
-      toast.error("Could not generate PDF");
-      document.body.removeChild(iframe);
-      return;
+    const { styles, body } = await buildSummaryHtml();
+    const todayStr = getTodayStr();
+    toast.info("Generating PDF, please wait...");
+
+    // Create a hidden container to render HTML
+    const container = document.createElement("div");
+    container.style.position = "fixed";
+    container.style.left = "-9999px";
+    container.style.top = "0";
+    container.style.width = "794px"; // A4 width at 96dpi
+    container.style.background = "#fff";
+    container.style.padding = "20px";
+    container.style.fontFamily = "'Segoe UI', Arial, sans-serif";
+    container.style.fontSize = "12px";
+    container.style.color = "#000";
+    container.innerHTML = `<style>${styles}</style>${body}`;
+    document.body.appendChild(container);
+
+    try {
+      const { default: html2canvas } = await import("html2canvas");
+      const { default: jsPDF } = await import("jspdf");
+
+      const canvas = await html2canvas(container, { scale: 2, useCORS: true, backgroundColor: "#ffffff" });
+      const imgData = canvas.toDataURL("image/jpeg", 0.95);
+
+      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+      const imgWidth = pdfWidth;
+      const imgHeight = (canvas.height * pdfWidth) / canvas.width;
+
+      let heightLeft = imgHeight;
+      let position = 0;
+
+      pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight);
+      heightLeft -= pdfHeight;
+
+      while (heightLeft > 0) {
+        position -= pdfHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight);
+        heightLeft -= pdfHeight;
+      }
+
+      pdf.save(`Daily_Summary_${todayStr}.pdf`);
+      toast.success("PDF downloaded successfully!");
+    } catch (err) {
+      console.error("PDF generation error:", err);
+      toast.error("Failed to generate PDF");
+    } finally {
+      document.body.removeChild(container);
     }
-    
-    iframeDoc.open();
-    iframeDoc.write(html);
-    iframeDoc.close();
-    
-    // Wait for content to render then trigger print (Save as PDF)
-    setTimeout(() => {
-      iframe.contentWindow?.print();
-      // Clean up after print dialog closes
-      setTimeout(() => {
-        document.body.removeChild(iframe);
-      }, 1000);
-    }, 500);
-    
-    toast.success("Save as PDF from the print dialog");
   };
 
   return (
