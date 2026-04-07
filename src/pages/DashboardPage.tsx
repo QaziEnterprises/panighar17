@@ -17,6 +17,7 @@ import { retryQuery } from "@/lib/retryFetch";
 import { offlineQuery } from "@/lib/offlineQuery";
 import { motion } from "framer-motion";
 import PaymentRemindersWidget from "@/components/PaymentRemindersWidget";
+import DailySalesSummary from "@/components/DailySalesSummary";
 
 interface TodaySummary {
   todaySales: number;
